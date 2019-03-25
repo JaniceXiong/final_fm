@@ -1,0 +1,337 @@
+<!--
+使用介绍：
+	点击当前场景图片，随机在曲库中加载歌曲，点击开始专注播放，播放结束后随机切换当前场景曲库中歌曲，2s后播放
+	所需json格式已给出
+	进度条不能控制歌曲进度，调试时请在audio控件后写入control，通过原生控件进行调试
+	尚未完成的功能：提示词（v-show实现），定时功能
+	按钮样式请美化，可将两按钮合并
+	切换回主界面请在logo图片上加一链接即可
+    走马灯未提供直接读取当前卡片的变量，如果要利用需要学习其源代码实现，较为困难
+-->
+<!DOCTYPE html>
+<html>
+
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<meta http-equiv="X-UA-Compatible" content="ie=edge">
+	<link rel="stylesheet" href="https://unpkg.com/element-ui/lib/theme-chalk/index.css">
+	<script src="https://unpkg.com/vue/dist/vue.js"></script>
+	<script src="https://unpkg.com/element-ui/lib/index.js"></script>
+	<script src="https://cdn.staticfile.org/vue-resource/1.5.1/vue-resource.min.js"></script>
+	<script src="jquery-3.3.1.js"></script>
+	<title>专注模式</title>
+</head>
+
+<style type="text/css">
+	body {
+		background-color: #B3C0D1;
+	}
+
+	#topBar {
+		background-color: #B3C0D1;
+		background: #B3C0D1;
+		height: 80px;
+		position: fixed;
+		top: 0;
+		left: 0;
+		width: 100%;
+		z-index: 1000;
+	}
+
+	.logo {
+		padding: 10px 100px;
+		position: relative;
+		z-index: 10000;
+	}
+
+	.title {
+		font-family: 'Times New Roman', Times, serif;
+		font-style: italic;
+		position: relative;
+		bottom: 60px;
+		left: 200px;
+	}
+
+	.el-carousel {
+		position: relative;
+		top: 100px;
+		z-index: 100;
+	}
+
+	.el-carousel__item h3 {
+		color: #475669;
+		font-size: 14px;
+		opacity: 0.75;
+		line-height: 200px;
+		height: 1000px;
+		margin: 0;
+	}
+
+	.el-carousel__item:nth-child(2n) {
+		background-color: #99a9bf;
+	}
+
+	.el-carousel__item:nth-child(2n+1) {
+		background-color: #d3dce6;
+	}
+
+	.background {
+		height: 500px;
+		width: 950px;
+	}
+
+	.chooseScene {
+		position: relative;
+		top: 180px;
+		left: 400px;
+	}
+
+	#music {
+		position: relative;
+		top: 100px;
+		z-index: 100;
+	}
+
+	#box {
+		position: relative;
+		top: 300px;
+	}
+
+	#slider {
+		width: 90%;
+		margin-left: auto;
+		margin-right: auto;
+	}
+
+	.musicButton {
+		position: relative;
+		width: 80px;
+		margin-left: -40px;
+		left: 50%;
+		box-shadow: 5px 5px gray
+	}
+
+	#mask {
+		position: fixed;
+		z-index: 0;
+		filter: blur(200px);
+		width: 100%;
+		height: 100%;
+		background: url("ref/logo.jpg") no-repeat 0 0;
+		background-size: 100% 100%;
+	}
+
+	#mainLogo {
+		border-radius: 10px;
+	}
+</style>
+
+<body>
+	<div id="mask"></div>
+
+	<div id="topBar">
+		<div class="logo"><a href="fm.html"><img id="mainLogo" src="ref/logo.jpg" width="60" height="60"></a></div>
+		<div class="title">
+			<font size="5" color="#000000">Meet · Focus Mode</font>
+		</div>
+	</div>
+
+	<div id="carousel">
+		<template>
+			<el-carousel :interval="-1" type="card" height="500px" autoplay="false">
+				<el-carousel-item :name="study">
+					<img class="background" src="ref/study1.jpg" @click="ChooseType('study')">
+					<!--挂载url，在实际使用中，可以通过反复点击来切歌-->
+					<el-button class="chooseScene" v-on:click="ChooseType('study')">播放按钮</el-button>
+				</el-carousel-item>
+				<el-carousel-item :name="rain">
+					<img class="background" src="ref/rain1.jpg" @click="ChooseType('rain')">
+					<el-button class="chooseScene" v-on:click="ChooseType('rain')">播放按钮</el-button>
+				</el-carousel-item>
+				<el-carousel-item :name="sea">
+					<img class="background" src="ref/sea1.jpg" @click="ChooseType('sea')">
+					<el-button class="chooseScene" v-on:click="ChooseType('sea')">播放按钮</el-button>
+				</el-carousel-item>
+			</el-carousel>
+		</template>
+	</div>
+
+	<div id="music">
+		<audio id="audio" ref="audio" v-bind:src="lodingUrl" ontimeupdate="UpdateFakeListener(this)"></audio>
+		<br>
+		<el-button class="musicButton" type="primary" round v-on:click="PlayControl()">开始</el-button>
+	</div>
+
+	<script>
+		function random(lower, upper) {//产生一个随机数，包括下限，但不包括上限
+			return Math.floor(Math.random() * (upper - lower)) + lower;
+		}
+
+		function UpdateFakeListener(event) {			//因为Vue对象在设置时，挂载了audio控件的父组件music，因此Vue的监听功能还涉及父子组件间的通信，而因为太菜，这部分知识还存在问题，因此在这边写了一个假的监听，通过audio对象的ontimeupdate来随时间更新一些变量，实现监听功能
+			if (event.currentTime == event.duration) {
+				music.SetURL(music.lodingType)			//随机切歌
+				setTimeout("music.Play()", "2000");		//一个延时函数，因为切歌后url的加载需要时间，因此在切割后2s再播放
+			}
+		}
+
+		var carousel = new Vue({//走马灯部分
+			el: '#carousel',
+			data: {
+				lodingType: 'empty'
+			},
+			methods: {
+				ChooseType: function (type) {
+					this.lodingType = type
+					music.lodingType = type
+					music.SetURL(type)
+					if (type == 'study') {
+						this.$message({
+							dangerouslyUseHTMLString: true,
+							message: '<font size="3" color="#000000">只剩下书本和阳光</font>',
+							center: true,
+							duration: 6000
+						})
+					}
+					if (type == 'sea') {
+						this.$message({
+							dangerouslyUseHTMLString: true,
+							message: '<font size="3" color="#000000">海浪带来的不仅仅是贝壳</font>',
+							center: true,
+							duration: 6000
+						})
+					}
+					if (type == 'rain') {
+						this.$message({
+							dangerouslyUseHTMLString: true,
+							message: '<font size="3" color="#000000">空山新雨后</font>',
+							center: true,
+							duration: 6000
+						})
+					}
+				}
+			}
+		})
+
+		var music = new Vue({//音乐控制部分
+			el: '#music',
+			data: {
+				slideTime: 0,//进度条的时间
+				lodingType: 'study',//当前歌曲的场景类型，默认为study
+				lodingUrl: 'https://api.bzqll.com/music/tencent/url?id=004WTlYT2kL99w&key=579621905',//当前装入的url，默认为study的第一首歌
+				songlist: [
+					{
+						"name": "歌单study",
+						"index": "1",
+						"songs": [{
+							"name": "song1",
+							"index": "1-1",
+							"url": "https://api.bzqll.com/music/tencent/url?id=004QgjKj0EL2ND&key=579621905"
+						}, {
+							"name": "song2",
+							"index": "1-2",
+							"url": "https://api.bzqll.com/music/tencent/url?id=001eYHmt3rejr4&key=579621905"
+						}, {
+							"name": "song3",
+							"index": "1-3",
+							"url": "https://api.bzqll.com/music/tencent/url?id=001OSfEZ3p3yLq&key=579621905"
+						}, {
+							"name": "song4",
+							"index": "1-4",
+							"url": "https://api.bzqll.com/music/tencent/url?id=003p7Ew72ikZce&key=579621905"
+						}, {
+							"name": "song5",
+							"index": "1-5",
+							"url": "https://api.bzqll.com/music/tencent/url?id=002PCgQH1kw78J&key=579621905"
+						}, {
+							"name": "song6",
+							"index": "1-6",
+							"url": "https://api.bzqll.com/music/tencent/url?id=002kIMQj3uJtRf&key=579621905"
+						}]
+					},
+					{
+						"name": "歌单rain",
+						"index": "2",
+						"songs": [{
+							"name": "song7",
+							"index": "2-1",
+							"url": "https://api.bzqll.com/music/tencent/url?id=003uB4fW1qvkqm&key=579621905"
+						}, {
+							"name": "song8",
+							"index": "2-2",
+							"url": "https://api.bzqll.com/music/tencent/url?id=001R9r8w2TIgKb&key=579621905"
+						}, {
+							"name": "song9",
+							"index": "2-3",
+							"url": "https://api.bzqll.com/music/tencent/url?id=002BHB8I1KD5Ot&key=579621905"
+						}]
+					},
+					{
+						"name": "歌单sea",
+						"index": "3",
+						"songs": [{
+							"name": "song10",
+							"index": "3-1",
+							"url": "https://api.bzqll.com/music/tencent/url?id=0035gik74OChux&key=579621905"
+						}, {
+							"name": "song11",
+							"index": "3-2",
+							"url": "https://api.bzqll.com/music/tencent/url?id=000IUVcp3HeNhv&key=579621905"
+						}, {
+							"name": "song12",
+							"index": "3-3",
+							"url": "https://api.bzqll.com/music/tencent/url?id=000NmbNI1oX3UR&key=579621905"
+						}]
+					}
+				]
+			},
+			methods: {
+				SetURL: function (type) {//依据当前类型（场景），在该场景歌单中随机选取一首装入url，songlist内的数字0、1、2分别为自习室、雨天、海边场景
+					var btn = document.getElementsByClassName("musicButton")[0].children[0]
+					btn.innerHTML = "开始"
+					if (type === 'study') {
+						var studyListLength = 0
+						for (var t in music.songlist[0].songs) {//获取长度
+							studyListLength++;
+						}
+						var i = random(0, studyListLength)//随机选取
+						music.lodingUrl = music.songlist[0].songs[i].url
+					}
+					if (type === 'rain') {
+						var rainListLength = 0
+						for (var t in music.songlist[1].songs) {
+							rainListLength++;
+						}
+						var i = random(0, rainListLength)
+						music.lodingUrl = music.songlist[1].songs[i].url
+					}
+					if (type === 'sea') {
+						var seaListLength = 0
+						for (var t in music.songlist[2].songs) {
+							seaListLength++;
+						}
+						var i = random(0, seaListLength)
+						music.lodingUrl = music.songlist[2].songs[i].url
+					}
+				},
+				Play: function () {
+					this.$refs.audio.play()
+				},
+				Pause: function () {
+					this.$refs.audio.pause()
+				},
+				PlayControl: function () {
+					var btn = document.getElementsByClassName("musicButton")[0].children[0]
+					if (this.$refs.audio.paused) {
+						this.Play()
+						btn.innerHTML = "暂停"
+					}
+					else {
+						this.Pause()
+						btn.innerHTML = "开始"
+					}
+				}
+			},
+		})
+	</script>
+</body>

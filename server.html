@@ -1,0 +1,894 @@
+<!DOCTYPE html>
+<html lang="zh">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>fm</title>
+
+    <script src="ref/jquery-3.3.1.js"></script>
+    <script src="ref/myAjax.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/element-ui/lib/theme-chalk/index.css">
+    <script src="https://unpkg.com/vue/dist/vue.js"></script>
+    <script src="https://unpkg.com/element-ui/lib/index.js"></script>
+    <script src="https://cdn.staticfile.org/vue-resource/1.5.1/vue-resource.min.js"></script>
+    <script type="text/x-template" id="songlist_template">
+        <div>
+            <el-submenu :index = "itemData.index">
+                <template slot="title">
+                        <i class="el-icon-star-on"></i><span>{{itemData.name}}</span>
+                </template>
+                <el-menu-item v-for="song in itemData.songs" :index = "song.index">
+                        <template slot="title">
+                                <i class="el-icon-star-on"></i><span>{{song.name}}</span>
+                        </template>
+                </el-menu-item>
+            </el-submenu>
+        </div>
+    </script>
+    <script type="text/javascript">
+        var song_list_obj;
+        var user_info_obj;
+        var init_info;
+        var user_name = "";
+        var user;
+        var current_song;
+        var rq = {};
+        var recom_song_list;
+        //var recom_song_arr;
+
+        function init() {
+            recom_song_list = {}
+
+            cookie_str = document.cookie;
+            cookie_list = cookie_str.split("; ");
+
+            for (var i = 0; i < cookie_list.length; i++) {
+                if (cookie_list[i].substr(0, 4) === "name") {
+                    user_name = cookie_list[i].substr(5)
+                }
+            }
+
+            console.log(user_name)
+            user = {
+                "name": user_name
+            };
+            var xmlhttp;
+            if (window.XMLHttpRequest) {// code for IE7+, Firefox, Chrome, Opera, Safari
+                xmlhttp = new XMLHttpRequest();
+            }
+            else {// code for IE6, IE5
+                xmlhttp = new ActiveXObject("Microsoft.XMLHTTP");
+            }
+            xmlhttp.onreadystatechange = function () {
+                if (xmlhttp.readyState == 4 && xmlhttp.status == 200) {
+                    init_info = JSON.parse(xmlhttp.responseText);
+                    song_list_obj = JSON.parse(init_info.song_list);
+                    user_info_obj = JSON.parse(init_info.user_info);
+                    report_info_obj = JSON.parse(init_info.report_info);
+
+                    current_song = init_info.first_song
+                    console.log("first song:")
+                    console.log(current_song)
+                    
+                    console.log("report info")
+                    console.log(report_info_obj)
+
+                }
+            }
+            xmlhttp.open("GET", "/fm" + "?name=" + user_name + "&rq_name=rq_init", false);
+            xmlhttp.send();
+
+
+        }
+        window.onload = init();
+        var current_user_picurl = $("#userinfo_bn")
+
+        current_user_picurl.css("background", "url(" + user_info_obj.userinfo.profile + ")");
+
+
+
+    </script>
+</head>
+
+<body>
+
+    <div id="app" v-cloak style="position:absolute; left:0; top:0; width:100%;height:100%;">
+        <el-container style="height:100%">
+
+            <el-header>
+                <el-menu class="el-menu-demo" mode="horizontal" @select="handleNavMenu">
+                    <el-menu-item index="1">
+                        <a href="focus.html" >模式切换</a>
+                    </el-menu-item>
+                    <el-menu-item index="2">
+                        <el-button type="text" @click="dialogReportFormVisible = true">我的F&M</el-button>
+
+                        <el-dialog :visible.sync="dialogReportFormVisible" width="30%" :before-close="handleUserReportClose">
+                            <span style="color:mediumvioletred;font-weight:bold;font-size: 18px">预见音乐 遇上心悦</span><br />
+                            <span >
+                                亲爱的<span style="color:mediumvioletred;font-weight:bold">{{current_user.name}}</span>，F&M电台时刻与你温暖同行~<br />
+                                <span style="color:rgb(21, 199, 184);font-weight:bold">2018</span>年的你，倾心于<span style="color:red;font-weight:bold">{{user_report.type}}</span><span>类型的音乐</span><br />
+                                习惯于默默倾听的你，却很少分享自己的故事<br />
+                                这一年里，你最爱的<span style="color:orangered;font-weight:bold">{{user_report.favorite_song["name"]}}</span>
+                                共计播放了<span style="color:orangered;font-weight:bold">{{user_report.favorite_song["playcount"]}}</span>次<br />
+                                在每个寒冷的夜晚，是<span style="color:darkred;font-weight:bold">{{user_report.favorite_singer["first_singer"]}}、{{user_report.favorite_singer["second_singer"]}}</span>伴你度过<br />
+                                感谢您选择<span style="color:mediumvioletred;font-weight:bold">F&M电台</span>，接下来的时光我们依旧不见不散
+                            </span>
+                        </el-dialog>
+                    </el-menu-item>
+                    <el-menu-item index="3">
+                        <!-- <button type="button" id="userinfo_bn"></button> -->
+                        <div id="dialog">
+
+                            <el-popover placement="right" width="200" trigger="hover">
+                                <div>
+                                    <el-card :body-style="{ padding: '0px' }" class="card">
+                                        <div class="imgContainer">
+                                            <img :src="current_user.profile" id="detailPic" class="image">
+                                        </div>
+                                        <div>
+                                            <el-form class="form">
+                                                <el-form-item label="姓名">
+                                                    {{current_user.name}}
+                                                </el-form-item>
+                                                <el-form-item label="性别">
+                                                    {{current_user.sex}}
+                                                </el-form-item>
+                                                <el-form-item label="生日">
+                                                    {{current_user.birth}}
+                                                </el-form-item>
+                                            </el-form>
+                                        </div>
+                                    </el-card>
+                                </div>
+                                <el-button slot="reference" id="userinfo_bn" type="primary" @click="dialogFormVisible = true"></el-button>
+                                </el-button>
+                            </el-popover>
+                            <el-dialog title="修改个人信息" :visible.sync="dialogFormVisible" width="40%" :before-close="handleMMenuClose">
+                                <!--<div id="form">-->
+                                <el-form :model="ruleForm" :rules="rules" ref="ruleForm" label-width="100px" class="demo-ruleForm">
+                                    <el-form-item label="头像" prop="profile">
+                                        <el-upload class="avatar-uploader" action="https://jsonplaceholder.typicode.com/posts/" :show-file-list="false" :on-success="handleAvatarSuccess"
+                                            :before-upload="beforeAvatarUpload">
+                                            <img v-if="imageUrl" :src="imageUrl" class="avatar">
+                                            <i v-else class="el-icon-plus avatar-uploader-icon"></i>
+                                        </el-upload>
+
+                                    </el-form-item>
+                                    <el-form-item label="用户昵称" prop="name">
+                                        <el-input v-model="ruleForm.name"></el-input>
+                                    </el-form-item>
+                                    <el-form-item label="性别" prop="sex">
+                                        <el-select v-model="ruleForm.sex" placeholder="请选择性别">
+                                            <el-option label="男" value="male"></el-option>
+                                            <el-option label="女" value="female"></el-option>
+                                            <el-option label="其他" value="others"></el-option>
+                                        </el-select>
+                                    </el-form-item>
+                                    <el-form-item label="出生日期" required>
+                                        <el-col :span="11">
+                                            <el-form-item prop="date1">
+                                                <el-date-picker type="date" placeholder="选择日期" v-model="ruleForm.date1" style="width: 100%;"></el-date-picker>
+                                            </el-form-item>
+                                        </el-col>
+                                    </el-form-item>
+
+                                    <el-form-item label="音乐类型" prop="type">
+                                        <el-checkbox-group v-model="ruleForm.type">
+                                            <el-checkbox label="流行" name="type"></el-checkbox>
+                                            <el-checkbox label="轻音乐" name="type"></el-checkbox>
+                                            <el-checkbox label="摇滚" name="type"></el-checkbox>
+                                            <el-checkbox label="民谣" name="type"></el-checkbox>
+                                            <el-checkbox label="R&B" name="type"></el-checkbox>
+                                            <el-checkbox label="嘻哈" name="type"></el-checkbox>
+                                            <el-checkbox label="电子" name="type"></el-checkbox>
+                                            <el-checkbox label="古典" name="type"></el-checkbox>
+                                        </el-checkbox-group>
+                                    </el-form-item>
+
+                                    <el-form-item>
+                                        <el-button type="primary" @click="submitForm('ruleForm')">提交修改</el-button>
+                                        <el-button @click="resetForm('ruleForm')">重置</el-button>
+                                    </el-form-item>
+                                </el-form>
+
+                                <!--</div>-->
+
+                            </el-dialog>
+                        </div>
+                    </el-menu-item>
+
+
+                </el-menu>
+                <el-popover placement="left" width="600" trigger="click" v-model="recom_visible">
+                    <div>
+
+                        <el-table width="600" ref="singleTable" :data="recom_songs" highlight-current-row @current-change="handleCurrentChange">
+                            <el-table-column prop="name" label="歌名" width="200">
+                            </el-table-column>
+                            <el-table-column prop="singer" label="歌手名" width="200">
+                            </el-table-column>
+                            <el-table-column prop="label" label="类型" width="120">
+                            </el-table-column>
+                            <el-table-column label="操作" width="80">
+                                <template slot-scope="scope">
+                                    <el-button size="mini" @click="handleRecomPlay(scope.$index, scope.row)">播放</el-button>
+
+                                </template>
+                            </el-table-column>
+
+                        </el-table>
+                    </div>
+                    <el-button size="mini" slot="reference" id="recom_songlist_bn" @click="recom_visible = !recom_visible"></el-button>
+                    </el-button>
+                </el-popover>
+            </el-header>
+            <el-main>
+                <div id="arm"> </div>
+                <div id="bg"> </div>
+                <div id="mask"> </div>
+                <div id="pic" class="cdStart"> </div>
+
+                <el-popover placement="right" width="300" trigger="hover">
+
+                    <div id="collection">
+
+                        <el-menu background-color="#545c64" text-color="#fff" active-text-color="#ffd04b" id="song_list_menu" @select="handleSelect">
+                            <child v-for="list in songlist" :item-data="list"></child>
+                        </el-menu>
+                    </div>
+
+                    <el-button id="song_list_button" slot="reference"></el-button>
+                </el-popover>
+            </el-main>
+            <el-footer height="105px">
+
+
+                <div id="music">
+                    <el-slider v-model="slidetime" @change="ChangeCurrentTime" :show-tooltip="false"></el-slider>
+                    <el-button id="Play" @click="PlayControl"></el-button>
+                    <el-button id="Next" @click="CutSong"></el-button>
+                    <el-button id="Like" @click="like"></el-button>
+
+                    <audio id="audio" ref="audio" src="" ontimeupdate="SlideTime(this)" autoplay></audio>
+                </div>
+
+
+            </el-footer>
+
+        </el-container>
+    </div>
+
+    <script>
+        function init_play() {
+            $("#arm").css("transition", "0.8s")
+            $("#arm").css("transform", "rotate(-20deg)")
+        }
+        Vue.component('child', {
+            props: ['itemData'],
+            template: '#songlist_template'
+        })
+        var app = new Vue({
+            el: '#app',
+            data() {
+                return {
+                    songlist: song_list_obj.songlist,
+                    current_user: user_info_obj.userinfo,
+                    user_report: report_info_obj.analysis,
+                    // song_list_obj,
+                    // user_info_obj,
+                    current_song,
+                    rq,
+                    recom_songs: [],//recom_song_arr,
+                    imageUrl: '',
+                    dialogTableVisible: false,
+                    dialogFormVisible: false,
+                    dialogReportFormVisible:false,
+                    ruleForm: {
+                        name: '',
+                        sex: '',
+                        date1: '',
+                        delivery: false,
+                        type: [],
+                    },
+                    rules: {
+                        profile: [
+                            { required: true, message: '请上传头像', trigger: 'blur' }
+                        ],
+                        name: [
+                            { required: true, message: '请输入昵称', trigger: 'blur' },
+                            { min: 1, max: 10, message: '长度在 1 到 10 个字符', trigger: 'blur' }
+                        ],
+                        region: [
+                            { required: true, message: '请选择活动区域', trigger: 'change' }
+                        ],
+                        date1: [
+                            { type: 'date', required: true, message: '请选择日期', trigger: 'change' }
+                        ],
+                        type: [
+                            { type: 'array', required: true, message: '请至少选择一个音乐类别', trigger: 'change' }
+                        ],
+                        sex: [
+                            { required: true, message: '请选择性别', trigger: 'blur' }
+                        ],
+                    },
+                    maxtime: 0,
+                    slidetime: 0,
+                    recom_visible: false
+                }
+
+            },
+            created: function () {
+
+            },
+
+            mounted: function () {
+
+                var main_audio = document.getElementById("audio");
+                main_audio.loop = false
+                rq['rq_name'] = "rq_nextsong"
+                main_audio.addEventListener('ended', function () {
+                    console.log("get next song")
+                    ajax({
+                        url: "/fm",
+                        data: rq,
+                        type: "GET",
+                        headtype: "fm_rq",
+                        timeout: 3000,
+                        success: function (xmlhttp) {
+                            app.current_song = JSON.parse(xmlhttp.responseText)
+                            console.log("frond end success")
+                            //console.log(app.current_song)
+                            $("audio").attr("src", app.current_song.songurl);
+
+                            $("#bg").css("background", "url(" + app.current_song.picurl + ") no-repeat 0 0");
+                            $("#bg").css("background-size", "100% 100%");
+                            $("#pic").css("background", "url(" + app.current_song.picurl + ") no-repeat 0 0");
+                            $("#pic").css("background-size", "cover");
+
+                            $("#arm").css("transition", "0.8s")
+                            $("#arm").css("transform", "rotate(-20deg)")
+
+                            //this.$refs.audio.play()
+
+                        },
+                        error: function (xmlhttp) {
+                            alert(xmlhttp.responseText);
+                        }
+                    });
+
+                    //console.log("current song:")
+                    //console.log(current_song)
+
+
+                }, false);
+                $("audio").attr("src", current_song.songurl);
+                $("#bg").css("background", "url(" + current_song.picurl + ") no-repeat 0 0");
+                $("#bg").css("background-size", "100% 100%");
+                $("#pic").css("background", "url(" + current_song.picurl + ") no-repeat 0 0");
+                $("#pic").css("background-size", "cover");
+
+                setTimeout("init_play()", "1000");
+
+
+            },
+            methods: {
+                handleSelect(key, keyPath) {
+                    var song_list_index = parseInt(key.substr(0, 1))
+                    var song_index = parseInt(key.substr(2))
+                    var songurl = this.songlist[song_list_index - 1].songs[song_index - 1].songurl
+                    var picurl = this.songlist[song_list_index - 1].songs[song_index - 1].picurl
+                    var songid = this.songlist[song_list_index - 1].songs[song_index - 1].songid
+
+                    console.log(this.songlist[song_list_index - 1].songs[song_index - 1])
+                    this.slidetime = 0;
+                    $("audio").attr("src", songurl);
+
+                    $("#bg").css("background", "url(" + picurl + ") no-repeat 0 0");
+                    $("#bg").css("background-size", "100% 100%");
+                    $("#pic").css("background", "url(" + picurl + ") no-repeat 0 0");
+                    $("#pic").css("background-size", "cover");
+
+                    $("#Play").css("background", "url(ref/play.png) no-repeat 0 0")
+                    $("#Play").css("background-size", "80%")
+                    $("#Play").css("background-position", "center")
+
+                    $("#Like").css("background", "url(ref/love.png) no-repeat 0 0")
+                    $("#Like").css("background-size", "80%")
+                    $("#Like").css("background-position", "center")
+
+                    $(".cdStart").css("animation-play-state", "running")//启动动画效果
+                    $("#arm").css("transition", "0.8s")
+                    $("#arm").css("transform", "rotate(-20deg)")
+
+                    rq['rq_name'] = "rq_play"
+                    rq['play_song'] = songid
+
+                    console.log(rq)
+                    // rq['rq_name'] = "rq_likesong";
+                    // rq['like_song_name'] = current_song_name
+                    var that = this
+                    recom_song_arr = []
+                    ajax({
+                        url: "/fm",
+                        data: rq,
+                        type: "GET",
+                        headtype: "fm_rq",
+                        timeout: 3000,
+                        success: function (xmlhttp) {
+                            console.log("play!")
+                        },
+                        error: function (xmlhttp) {
+                            alert(xmlhttp.responseText);
+                        }
+                    });
+
+                },
+                handleMMenuClose(done) {
+                    this.$confirm('确认关闭？')
+                        .then(_ => {
+
+                            this.$refs['ruleForm'].resetFields();
+
+                            done();
+
+                        })
+                        .catch(_ => { });
+
+                },
+                handleNavMenu(key, keyPath) {
+
+                },
+                like() {
+                    console.log("like")
+                    var current_song_id = app.current_song.songid
+                    console.log(current_song_id)
+
+                    $("#Like").css("background", "url(ref/loved.png) no-repeat 0 0")
+                    $("#Like").css("background-size", "80%")
+                    $("#Like").css("background-position", "center")
+
+                    rq['rq_name'] = "rq_likesong"
+                    rq['liked_song'] = current_song_id
+
+                    console.log(rq)
+                    // rq['rq_name'] = "rq_likesong";
+                    // rq['like_song_name'] = current_song_name
+                    var that = this
+                    recom_song_arr = []
+                    ajax({
+                        url: "/fm",
+                        data: rq,
+                        type: "GET",
+                        headtype: "fm_rq",
+                        timeout: 3000,
+                        success: function (xmlhttp) {
+                            recom_song_list = JSON.parse(xmlhttp.responseText)
+                            console.log(recom_song_list)
+
+                            var recom_song_arr = []
+
+
+                            for (i in recom_song_list) {
+
+                                recom_song_arr.push(recom_song_list[i])
+                            }
+
+                            that.recom_songs = recom_song_arr;
+
+                        },
+                        error: function (xmlhttp) {
+                            alert(xmlhttp.responseText);
+                        }
+                    });
+
+
+                    $("#recom_songlist_bn").click();
+
+                    for (var i = 0; i < app.songlist.length; i++) {
+                        if (app.songlist[i]['name'] == "我喜欢") {
+                            var sl_idx = app.songlist[i]['index']
+                            var cnt_songs = app.songlist[i]['songs'].length
+                            var new_song_idx = sl_idx + "-" + (cnt_songs + 1)
+                            app.current_song['index'] = new_song_idx
+                            app.songlist[i]['songs'].push(app.current_song)
+                            break;
+                        }
+                    }
+
+                    //console.log(app.songlist[i]['songs'])
+                },
+
+
+                submitForm(formName) {
+                    this.$refs[formName].validate((valid) => {
+                        if (valid) {
+                            alert('submit!');
+                            console.log(formName)
+                        } else {
+                            console.log('error submit!!');
+                            return false;
+                        }
+                    });
+                },
+                resetForm(formName) {
+                    this.$refs[formName].resetFields();
+                },
+                handleAvatarSuccess(res, file) {
+                    this.imageUrl = URL.createObjectURL(file.raw);
+                },
+                beforeAvatarUpload(file) {
+                    const isJPG = file.type === 'image/png';
+                    const isLt2M = file.size / 1024 / 1024 < 2;
+
+                    if (!isJPG) {
+                        this.$message.error('上传头像图片只能是 PNG 格式!');
+                    }
+                    if (!isLt2M) {
+                        this.$message.error('上传头像图片大小不能超过 2MB!');
+                    }
+                    return isJPG && isLt2M;
+                },
+                handleCurrentChange(val) {
+                    this.currentRow = val;
+                },
+                handleRecomPlay(index, row) {
+                    console.log(index, row)
+                    $("audio").attr("src", row.songurl);
+
+                    $("#bg").css("background", "url(" + row.picurl + ") no-repeat 0 0");
+                    $("#bg").css("background-size", "100% 100%");
+                    $("#pic").css("background", "url(" + row.picurl + ") no-repeat 0 0");
+                    $("#pic").css("background-size", "cover");
+                    $(".cdStart").css("animation-play-state", "running")//启动动画效果
+                    $("#arm").css("transition", "0.8s")
+                    $("#arm").css("transform", "rotate(-20deg)")
+
+                    this.recom_songs = []
+
+
+                    $("#recom_songlist_bn").click();
+
+
+                },
+
+
+                PlayControl() {
+                    if (this.$refs.audio.paused) {
+                        this.$refs.audio.play()
+                        $("#Play").css("background", "url(ref/pause.png) no-repeat 0 0")
+                        $("#Play").css("background-size", "80%")
+                        $("#Play").css("background-position", "center")
+                        $(".cdStart").css("animation-play-state", "running")//启动动画效果
+                        $("#arm").css("transition", "0.8s")
+                        $("#arm").css("transform", "rotate(-20deg)")
+                    }
+                    else {
+                        this.$refs.audio.pause()
+                        $("#Play").css("background", "url(ref/play.png) no-repeat 0 0")
+                        $("#Play").css("background-size", "80%")
+                        $("#Play").css("background-position", "center")
+                        $(".cdStart").css("animation-play-state", "paused")//暂停动画效果
+                        $("#arm").css("transform", "rotate(-36deg)")
+                    }
+                },
+                ChangeCurrentTime(index) {
+                    this.$refs.audio.currentTime = parseInt(index / 100 * this.maxtime)
+                },
+                CutSong() {
+                    rq['rq_name'] = "rq_nextsong"
+                    ajax({
+                        url: "/fm",
+                        data: rq,
+                        type: "GET",
+                        headtype: "fm_rq",
+                        timeout: 3000,
+                        success: function (xmlhttp) {
+                            app.current_song = JSON.parse(xmlhttp.responseText)
+                            console.log("cut now current_song:")
+                            console.log(app.current_song)
+                            $("audio").attr("src", app.current_song.songurl);
+
+                            $("#bg").css("background", "url(" + app.current_song.picurl + ") no-repeat 0 0");
+                            $("#bg").css("background-size", "100% 100%");
+                            $("#pic").css("background", "url(" + app.current_song.picurl + ") no-repeat 0 0");
+                            $("#pic").css("background-size", "cover");
+                            $(".cdStart").css("animation-play-state", "running")//启动动画效果
+                            $("#arm").css("transform", "rotate(-20deg)")
+                            //this.$refs.audio.play()
+
+                        },
+                        error: function (xmlhttp) {
+                            alert(xmlhttp.responseText);
+                        }
+                    });
+
+                    $("#Like").css("background", "url(ref/love.png) no-repeat 0 0")
+                    $("#Like").css("background-size", "80%")
+                    $("#Like").css("background-position", "center")
+                },
+                handleUserReportClose(done){
+                    this.$confirm('确定不再看看嘛？')
+                            .then(_ => {
+                                done();
+                            })
+                            .catch(_ => { });
+                }
+            }
+
+        })
+        function SlideTime(event) {
+            app.maxtime = event.duration
+            app.slidetime = (event.currentTime / event.duration) * 100;
+        }
+
+
+    </script>
+
+</body>
+<style>
+    @import url("https://unpkg.com/element-ui@2.4.11/lib/theme-chalk/index.css");
+    .el-header,
+    .el-footer {
+        background-color: #B3C0D1;
+        color: #333;
+        text-align: center;
+        line-height: 60px;
+    }
+
+    .el-aside {
+        background-color: #D3DCE6;
+        color: #333;
+        line-height: 300px;
+        height: 100%;
+    }
+
+    #song_list_menu {
+        height: 100%;
+    }
+
+
+    .el-main {
+        position: relative;
+        background-color: #E9EEF3;
+        color: #333;
+        text-align: center;
+        line-height: 160px;
+        height: 100%;
+
+    }
+
+
+    body>.el-container {
+        margin-bottom: 40px;
+    }
+
+    .avatar-uploader .el-upload {
+        border: 1px dashed #d9d9d9;
+        border-radius: 6px;
+        cursor: pointer;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .avatar-uploader .el-upload:hover {
+        border-color: #409EFF;
+    }
+
+    .avatar-uploader-icon {
+        font-size: 28px;
+        color: #8c939d;
+        width: 178px;
+        height: 178px;
+        line-height: 178px;
+        text-align: center;
+    }
+
+    .avatar {
+        width: 178px;
+        height: 178px;
+        display: block;
+    }
+
+    .imgContainer {
+        overflow: hidden;
+        position: relative;
+        width: 200px;
+        height: 200px;
+        /* width: 100%;
+            height: 100%; */
+    }
+
+    .bottom {
+        margin-top: 13px;
+        line-height: 12px;
+    }
+
+    .card {
+        position: relative;
+        width: 200px;
+    }
+
+    .button {
+        padding: 0;
+        float: right;
+    }
+
+    .image {
+        position: absolute;
+        object-fit: cover;
+        width: 100%;
+        height: 100%;
+        /*  top: 50%;
+        left: 50%; */
+        /* transform: translate(-50%, -50%); */
+    }
+
+    .clearfix:before,
+    .clearfix:after {
+        display: table;
+        content: "";
+    }
+
+    .clearfix:after {
+        clear: both
+    }
+
+    .form {
+        position: relative;
+        width: auto;
+        padding-left: 15%;
+        padding-top: 6%;
+    }
+
+    #userinfo_bn {
+        border: 0;
+        width: 50px;
+        height: 50px;
+        background: url(http://img.hb.aicdn.com/1e4611a6d81235f8e3d4a08e2a971598eed7123eae89-g2dIl2_fw658);
+        background-size: 100%;
+        border: 2px solid white;
+        border-radius: 50%;
+    }
+
+
+    #bg {
+        height: 100%;
+        width: 100%;
+        background: url("ref/logo.jpg") no-repeat 0 0;
+        background-size: 100% 100%;
+        filter: blur(100px);
+        z-index: 0;
+    }
+
+    #pic {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        margin-left: -80px;
+        margin-top: -80px;
+        width: 160px;
+        height: 160px;
+        background: url("ref/logo.jpg") no-repeat 0 0;
+        background-size: cover;
+        z-index: 1;
+    }
+
+    #mask {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        margin-left: -250px;
+        margin-top: -250px;
+        width: 500px;
+        height: 500px;
+        background: url("ref/mask.png") no-repeat 0 0;
+        background-size: cover;
+        z-index: 2;
+    }
+
+    #song_list_button {
+        width: 40px;
+        height: 40px;
+        background: url("ref/list.png") no-repeat 0 0;
+        background-size: cover;
+        position: absolute;
+        left: 5px;
+        top: 5px;
+        border-width: 0px;
+    }
+
+    #Play {
+        background: url("ref/play.png") no-repeat 0 0;
+        background-size: 80%;
+        background-position: center;
+        margin-top: 5px;
+        width: 50px;
+        height: 50px;
+        border-width: 0px;
+    }
+
+    #Next {
+        background: url("ref/next.png") no-repeat 0 0;
+        background-size: 80%;
+        background-position: center;
+        margin-top: 5px;
+        width: 50px;
+        height: 50px;
+        border-width: 0px;
+    }
+
+    #Like {
+        background: url("ref/love.png") no-repeat 0 0;
+        background-size: 80%;
+        background-position: center;
+        margin-top: 5px;
+        width: 50px;
+        height: 50px;
+        border-width: 0px;
+    }
+
+    #recom_songlist_bn {
+        /* display:none; */
+        position: relative;
+        float: right;
+        width: 3px;
+        height: 3px;
+
+    }
+
+    /* 动画效果的原型 */
+
+    @keyframes myCDRotate {
+        from {
+            transform: rotate(0);
+        }
+
+        to {
+            transform: rotate(360deg);
+        }
+    }
+
+    /* 为cdStart类绑定动画效果 */
+
+    .cdStart {
+        animation: myCDRotate 5s infinite linear forwards;
+        animation-play-state: running;
+        /*动画效果默认为开启，以配合“进入页面音乐自动播放”的效果*/
+    }
+
+    #arm {
+        width: 300px;
+        height: 150px;
+        background: url("ref/arm.png") no-repeat;
+        background-size: contain;
+        position: absolute;
+        z-index: 3;
+        top: 50%;
+        left: 50%;
+        margin-top: -200px;
+        margin-left: -300px;
+        transform-origin: top left;
+        -moz-transform-origin: top left;
+        -webkit-transform-origin: top left;
+        -o-transform-origin: top left;
+        transition: 0s;
+        transform: rotate(-36deg);
+    }
+
+    #collection {
+        height: 500px;
+        width: 300px;
+        overflow-x: scroll;
+        overflow-y: scroll;
+    }
+
+    a{
+        text-decoration:none; 
+    }
+
+</style>
+
+</html>
